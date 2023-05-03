@@ -107,7 +107,7 @@ autoencoder = autoencoder.to(device)
 
 learning_rate = 0.001
 optimizer = optim.Adam(autoencoder.encoder.parameters(), lr=learning_rate)
-criterion = nn.L2Loss()
+criterion = nn.MSELoss()
 
 # Add batch normalization if the flag is set
 if batch_normalise:
