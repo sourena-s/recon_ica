@@ -6,27 +6,8 @@ import nibabel as nib
 import pandas as pd
 import torch.optim as optim
 
-from sklearn.decomposition import IncrementalPCA
 
-class IncrementalPCATransformer:
-    def __init__(self, n_components, batch_size):
-        self.n_components = n_components
-        self.batch_size = batch_size
-        self.ipca = IncrementalPCA(n_components=self.n_components)
-
-    def fit(self, data):
-        for i in range(0, data.shape[0], self.batch_size):
-            batch_data = data[i:i + self.batch_size]
-            self.ipca.partial_fit(batch_data)
-
-    def transform(self, data):
-        transformed_data = np.zeros((data.shape[0], self.n_components))
-
-        for i in range(0, data.shape[0], self.batch_size):
-            batch_data = data[i:i + self.batch_size]
-            transformed_data[i:i + self.batch_size] = self.ipca.transform(batch_data)
-
-        return transformed_data
+device = torch.device("cuda:0")
 
 
 class CustomAutoencoder(nn.Module):
@@ -66,10 +47,10 @@ do_masking=False
 
 scan = nib.load(nifti_file)
 #print(scan.header)
-data = scan.get_data()
+data = scan.get_fdata()
 
 mask_nifti = nib.load(mask_file)
-mask_data = mask_nifti.get_data()
+mask_data = mask_nifti.get_fdata()
 
 if len(data.shape) == 4:
 # Flatten the spatial dimensions
@@ -101,7 +82,7 @@ final_input_data = masked_data[nonzero_var_indices]
 # User-defined flags
 demean = True
 variance_normalise = True
-batch_normalise = True
+batch_normalise = False
 non_gaussianity_hyperparam = 0.1
 
 # Preprocess the data
@@ -114,29 +95,40 @@ if variance_normalise:
 # Convert flattened data to PyTorch tensor
 input_data = torch.tensor(final_input_data, dtype=torch.float32)
 
-# Add batch normalization if the flag is set
-if batch_normalise:
-    batch_norm = CustomBatchNorm(input_dim)
-
 # Training loop
 num_epochs = 100
 batch_size = 64  # Set the desired batch size
 
 input_dim = flattened_data.shape[1]  # Set input dimension based on the flattened data
-latent_dim = 20
+latent_dim = 2000
+
 autoencoder = CustomAutoencoder(input_dim, latent_dim)
-learning_rate = 0.03
+autoencoder = autoencoder.to(device)
+
+learning_rate = 0.001
 optimizer = optim.Adam(autoencoder.encoder.parameters(), lr=learning_rate)
+criterion = nn.L2Loss()
+
+# Add batch normalization if the flag is set
+if batch_normalise:
+    batch_norm = CustomBatchNorm(input_dim)
+
+loader = torch.utils.data.DataLoader(input_data, batch_size=batch_size, pin_memory=True)
 
 for epoch in range(num_epochs):
-    for i in range(0, input_data.shape[0], batch_size):
-        batch_input_data = input_data[i:i + batch_size]
+    #for i in range(0, input_data.shape[0], batch_size):
+        #batch_input_data = input_data[i:i + batch_size]
+        #batch_input_data = batch_input_data.to(device)
+    for batch in loader:
+        batch_input_data = batch.to(device)
+
         # Apply batch normalization if the flag is set
         if batch_normalise:
             batch_input_data = batch_norm(batch_input_data)
         optimizer.zero_grad()
         output = autoencoder(batch_input_data)
-        reconstruction_loss = nn.L1Loss()(output, batch_input_data)
+        #reconstruction_loss = nn.L1Loss()(output, batch_input_data)
+        reconstruction_loss = criterion(output, batch_input_data)
 #       independence_loss = non_gaussianity_hyperparam * kurtosis_cost(autoencoder.encoder(batch_input_data))
 #        loss = reconstruction_loss + non_gaussianity_hyperparam * independence_loss 
         loss = reconstruction_loss
