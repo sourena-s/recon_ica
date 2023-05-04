@@ -16,7 +16,7 @@ class CustomAutoencoder(nn.Module):
         self.encoder = nn.Linear(input_dim, latent_dim, bias=False)
         self.decoder = nn.Linear(latent_dim, input_dim, bias=False)
 # Lock the decoder weights
-        self.decoder.weight.requires_grad = False
+#        self.decoder.weight.requires_grad = False
        # Initialize encoder weights randomly
         nn.init.normal_(self.encoder.weight, mean=0, std=0.01)
         # Initialize decoder weights as transpose of the encoder weights
@@ -100,7 +100,7 @@ num_epochs = 100
 batch_size = 64  # Set the desired batch size
 
 input_dim = flattened_data.shape[1]  # Set input dimension based on the flattened data
-latent_dim = 2000
+latent_dim = 100
 
 autoencoder = CustomAutoencoder(input_dim, latent_dim)
 autoencoder = autoencoder.to(device)
@@ -121,7 +121,6 @@ for epoch in range(num_epochs):
         #batch_input_data = batch_input_data.to(device)
     for batch in loader:
         batch_input_data = batch.to(device)
-
         # Apply batch normalization if the flag is set
         if batch_normalise:
             batch_input_data = batch_norm(batch_input_data)
@@ -133,8 +132,16 @@ for epoch in range(num_epochs):
 #        loss = reconstruction_loss + non_gaussianity_hyperparam * independence_loss 
         loss = reconstruction_loss
         loss.backward()
-        optimizer.step()
+        # Manually update the weights of the encoder
+        with torch.no_grad():
+            encoder_grad = model.encoder.weight.grad
+            decoder_grad = model.decoder.weight.grad
+            # Add the gradients of the encoder and the transpose of the gradient of the decoder
+            model.encoder.weight.data -= learning_rate * (encoder_grad + decoder_grad.T)
+            # Update the weights of the decoder to be the transpose of the updated encoder weights
         autoencoder.update_decoder_weights()
+        # Update the biases
+#        optimizer.step()
     print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}")
 
 
