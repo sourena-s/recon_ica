@@ -134,10 +134,10 @@ for epoch in range(num_epochs):
         loss.backward()
         # Manually update the weights of the encoder
         with torch.no_grad():
-            encoder_grad = model.encoder.weight.grad
-            decoder_grad = model.decoder.weight.grad
+            encoder_grad = autoencoder.encoder.weight.grad
+            decoder_grad = autoencoder.decoder.weight.grad
             # Add the gradients of the encoder and the transpose of the gradient of the decoder
-            model.encoder.weight.data -= learning_rate * (encoder_grad + decoder_grad.T)
+            autoencoder.encoder.weight.data -= learning_rate * (encoder_grad + decoder_grad.T)
             # Update the weights of the decoder to be the transpose of the updated encoder weights
         autoencoder.update_decoder_weights()
         # Update the biases
