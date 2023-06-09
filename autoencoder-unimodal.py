@@ -4,10 +4,44 @@ import torch.optim as optim
 import numpy as np
 import nibabel as nib
 import pandas as pd
-import torch.optim as optim
+import torch.nn.functional as F
 
 
 device = torch.device("cuda:0")
+
+
+class TiedAE(nn.Module):
+    def __init__(self, input_dim, latent_dim):
+        super(TiedAE, self).__init__()
+        self.encoder = nn.Linear(input_dim, latent_dim, bias=False)
+        
+    def forward(self, x):
+        z = self.encoder(x)
+        # z = F.relu(z)  # nonlinearity
+        x_r = F.linear(z, self.encoder.weight.t())
+        return x_r
+
+
+def test_TiedAE():
+    # Test TiedAE on dummy data.
+    model = TiedAE(100,50)
+    optimizer = torch.optim.Adam(model.parameters())
+    criterion = nn.MSELoss()
+    x = torch.FloatTensor(27,100).normal_()
+    for _ in range(1000):
+        optimizer.zero_grad()
+        x_r = model(x)
+        loss = criterion(x_r, x)
+        loss.backward()
+        optimizer.step()
+        print(loss)
+    
+
+test_TiedAE()
+#exit(0)
+    
+
+
 
 
 class CustomAutoencoder(nn.Module):
